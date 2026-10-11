@@ -1,40 +1,24 @@
 ﻿const express = require("express");
 const multer = require("multer");
-const path = require("path");
-const crypto = require("crypto");
-const fs = require("fs");
 
 const authMiddleware = require("../middleware/authMiddleware");
+const cloudinary = require("../config/cloudinary");
 
 const router = express.Router();
 
-const uploadDirectory = path.join(__dirname, "..", "uploads");
-
-fs.mkdirSync(uploadDirectory, { recursive: true });
-
+// Supported image formats
 const allowedTypes = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
-  "image/gif": ".gif",
+  "image/jpeg": true,
+  "image/png": true,
+  "image/webp": true,
+  "image/gif": true,
 };
 
-const storage = multer.diskStorage({
-  destination: (req, file, callback) => {
-    callback(null, uploadDirectory);
-  },
+// Store uploaded images in memory temporarily.
+// Cloudinary will handle permanent image storage.
+const storage = multer.memoryStorage();
 
-  filename: (req, file, callback) => {
-    const extension = allowedTypes[file.mimetype];
-
-    if (!extension) {
-      return callback(new Error("Unsupported image format."));
-    }
-
-    callback(null, `${crypto.randomUUID()}${extension}`);
-  },
-});
-
+// Validate uploaded file types
 const fileFilter = (req, file, callback) => {
   if (!allowedTypes[file.mimetype]) {
     return callback(
@@ -45,6 +29,7 @@ const fileFilter = (req, file, callback) => {
   callback(null, true);
 };
 
+// Configure upload limits
 const upload = multer({
   storage,
   fileFilter,
@@ -54,8 +39,9 @@ const upload = multer({
   },
 });
 
+// Upload an image to Cloudinary
 router.post("/", authMiddleware, (req, res, next) => {
-  upload.single("image")(req, res, (error) => {
+  upload.single("image")(req, res, async (error) => {
     if (error) {
       return next(error);
     }
@@ -66,11 +52,39 @@ router.post("/", authMiddleware, (req, res, next) => {
       });
     }
 
-    return res.status(201).json({
-      message: "Image uploaded successfully.",
-      imageUrl: `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`,
-      filename: req.file.filename,
-    });
+    try {
+      // Send the image to Cloudinary
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "cac-lifegate",
+            resource_type: "image",
+          },
+          (uploadError, uploadResult) => {
+            if (uploadError) {
+              return reject(uploadError);
+            }
+
+            resolve(uploadResult);
+          }
+        );
+
+        stream.end(req.file.buffer);
+      });
+
+      // Return the permanent Cloudinary URL
+      return res.status(201).json({
+        message: "Image uploaded successfully.",
+        imageUrl: result.secure_url,
+        filename: result.public_id,
+      });
+    } catch (uploadError) {
+      console.error("Cloudinary upload failed:", uploadError.message);
+
+      return res.status(500).json({
+        message: "Image upload failed. Please try again.",
+      });
+    }
   });
 });
 
