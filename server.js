@@ -12,6 +12,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const eventRoutes = require("./routes/eventRoutes");
 const sermonRoutes = require("./routes/sermonRoutes");
 const galleryRoutes = require("./routes/galleryRoutes");
+const albumRoutes = require("./routes/albumRoutes");
 const ministryRoutes = require("./routes/ministryRoutes");
 const leadershipRoutes = require("./routes/leadershipRoutes");
 const prayerRoutes = require("./routes/prayerRoutes");
@@ -34,6 +35,7 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/api/uploads", uploadRoutes);
 
 // Test route
 app.get("/", (req, res) => {
@@ -48,6 +50,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/sermons", sermonRoutes);
 app.use("/api/gallery", galleryRoutes);
+app.use("/api/albums", albumRoutes);
 app.use("/api/ministries", ministryRoutes);
 app.use("/api/leadership", leadershipRoutes);
 app.use("/api/prayers", prayerRoutes);
